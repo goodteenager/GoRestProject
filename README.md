@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Go REST API CRUD с GORM, PostgreSQL и Docker
 
 Проект представляет собой RESTful API на Go с использованием:
@@ -118,3 +119,6 @@ curl -X PUT http://localhost:8080/api/users/1 \
 ```bash
 curl -X DELETE http://localhost:8080/api/users/1
 ```
+=======
+# GoRestProject
+>>>>>>> 1e5b030465f64e5a08134b2684c416a6064ea493
