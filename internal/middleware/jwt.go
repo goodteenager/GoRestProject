@@ -80,31 +80,6 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-// RoleAuthMiddleware checks if user has the required role
-func RoleAuthMiddleware(requiredRoles ...string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Get role from context (set by JWTAuthMiddleware)
-		role, exists := c.Get("role")
-		if !exists {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Role not found in token"})
-			c.Abort()
-			return
-		}
-
-		// Check if user has required role
-		userRole := role.(string)
-		for _, r := range requiredRoles {
-			if r == userRole {
-				c.Next()
-				return
-			}
-		}
-
-		c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
-		c.Abort()
-	}
-}
-
 // GenerateToken creates a new JWT token for a user
 func GenerateToken(user models.User) (string, error) {
 	// Get JWT secret from environment variable

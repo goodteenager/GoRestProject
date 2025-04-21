@@ -40,11 +40,22 @@ func (u User) ToResponse() UserResponse {
 	}
 }
 
-// BeforeSave is a GORM hook that runs before saving a user
 func (u *User) BeforeSave() error {
-	// Set default role if not provided
+	// Установка роли по умолчанию, если не указана
 	if u.Role == "" {
 		u.Role = "user"
 	}
+
+	// Проверка, что роль допустима
+	validRoles := map[string]bool{
+		"user":      true,
+		"admin":     true,
+		"moderator": true,
+	}
+
+	if !validRoles[u.Role] {
+		u.Role = "user" // Если недопустимая роль, устанавливаем "user"
+	}
+
 	return nil
 }

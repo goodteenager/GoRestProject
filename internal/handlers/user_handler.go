@@ -3,6 +3,7 @@
 package handlers
 
 import (
+	"go-rest-api/internal/middleware"
 	"net/http"
 	"strconv"
 
@@ -174,4 +175,137 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 
 	h.DB.Delete(&user)
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+}
+
+// internal/handlers/user_handler.go (дополнения)
+
+// UpdateUserSelf позволяет пользователю обновить только свои данные
+func (h *UserHandler) UpdateUserSelf(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат ID"})
+		return
+	}
+
+	// Получаем ID аутентифицированного пользователя из контекста
+	userID, _ := c.Get("user_id")
+
+	// Проверяем, имеет ли пользователь право обновлять эти данные
+	if userID.(uint) != uint(id) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Вы можете обновлять только свои данные"})
+		return
+	}
+
+	var user models.User
+	if err := h.DB.First(&user, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
+		return
+	}
+
+	var input models.User
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Обновляем только разрешенные поля (имя, email, пароль)
+	updateData := map[string]interface{}{}
+
+	if input.Name != "" {
+		updateData["name"] = input.Name
+	}
+
+	if input.Email != "" {
+		// Проверка, не занят ли email другим пользователем
+		var existingUser models.User
+		if result := h.DB.Where("email = ? AND id != ?", input.Email, id).First(&existingUser); result.RowsAffected > 0 {
+			c.JSON(http.StatusConflict, gin.H{"error": "Email уже используется"})
+			return
+		}
+		updateData["email"] = input.Email
+	}
+
+	if input.Password != "" {
+		// Hash the password
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось хешировать пароль"})
+			return
+		}
+		updateData["password"] = string(hashedPassword)
+	}
+
+	// Пользователь не может изменить свою роль
+	if input.Role != "" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Вы не можете изменить свою роль"})
+		return
+	}
+
+	h.DB.Model(&user).Updates(updateData)
+
+	c.JSON(http.StatusOK, user.ToResponse())
+}
+
+// UpdateUserAdmin обновляет данные пользователя с правами администратора
+func (h *UserHandler) UpdateUserAdmin(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат ID"})
+		return
+	}
+
+	var user models.User
+	if err := h.DB.First(&user, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Пользователь не найден"})
+		return
+	}
+
+	var input models.User
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Обновляем данные пользователя
+	updateData := map[string]interface{}{}
+
+	if input.Name != "" {
+		updateData["name"] = input.Name
+	}
+
+	if input.Email != "" {
+		// Проверка, не занят ли email другим пользователем
+		var existingUser models.User
+		if result := h.DB.Where("email = ? AND id != ?", input.Email, id).First(&existingUser); result.RowsAffected > 0 {
+			c.JSON(http.StatusConflict, gin.H{"error": "Email уже используется"})
+			return
+		}
+		updateData["email"] = input.Email
+	}
+
+	if input.Password != "" {
+		// Hash the password
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось хешировать пароль"})
+			return
+		}
+		updateData["password"] = string(hashedPassword)
+	}
+
+	// Администратор может изменить роль пользователя
+	if input.Role != "" {
+		// Проверка на допустимые роли
+		if input.Role != middleware.RoleUser &&
+			input.Role != middleware.RoleAdmin &&
+			input.Role != middleware.RoleModerator {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимая роль"})
+			return
+		}
+		updateData["role"] = input.Role
+	}
+
+	h.DB.Model(&user).Updates(updateData)
+
+	c.JSON(http.StatusOK, user.ToResponse())
 }

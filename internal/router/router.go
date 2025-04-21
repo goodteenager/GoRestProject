@@ -10,7 +10,6 @@ import (
 	"go-rest-api/internal/middleware"
 )
 
-// SetupRouter настраивает маршруты API
 func SetupRouter(db *gorm.DB) *gin.Engine {
 	router := gin.Default()
 
@@ -21,27 +20,34 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	// Группа API
 	api := router.Group("/api")
 	{
-		// Публичные маршруты аутентификации (без middleware)
+		// Публичные маршруты аутентификации
 		auth := api.Group("/auth")
 		{
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/register", authHandler.Register)
 		}
 
-		// Защищенные маршруты пользователей (с middleware)
+		// Защищенные маршруты пользователей (с JWT аутентификацией)
 		users := api.Group("/users")
 		users.Use(middleware.JWTAuthMiddleware()) // Добавляем JWT аутентификацию
 		{
 			// Маршруты доступные всем аутентифицированным пользователям
 			users.GET("/:id", userHandler.GetUser)
+			users.PUT("/:id", userHandler.UpdateUserSelf) // Новый метод для обновления только своих данных
 
-			// Маршруты доступные только администраторам
-			adminRoutes := users.Group("/")
-			adminRoutes.Use(middleware.RoleAuthMiddleware("admin"))
+			// Защищенные маршруты для модераторов и администраторов
+			modRoutes := users.Group("/")
+			modRoutes.Use(middleware.RoleAuthMiddleware(middleware.RoleAdmin, middleware.RoleModerator))
 			{
-				adminRoutes.GET("", userHandler.GetUsers)
+				modRoutes.GET("", userHandler.GetUsers)
+			}
+
+			// Защищенные маршруты для только администраторов
+			adminRoutes := users.Group("/")
+			adminRoutes.Use(middleware.RoleAuthMiddleware(middleware.RoleAdmin))
+			{
 				adminRoutes.POST("", userHandler.CreateUser)
-				adminRoutes.PUT("/:id", userHandler.UpdateUser)
+				adminRoutes.PUT("/:id/admin", userHandler.UpdateUserAdmin) // Обновление с правами админа
 				adminRoutes.DELETE("/:id", userHandler.DeleteUser)
 			}
 		}
