@@ -1,3 +1,5 @@
+// internal/handlers/user_handler.go
+
 package handlers
 
 import (
@@ -5,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
 	"go-rest-api/internal/models"
@@ -20,7 +23,7 @@ func NewUserHandler(db *gorm.DB) *UserHandler {
 	return &UserHandler{DB: db}
 }
 
-// GetUsers возвращает список всех пользователей
+// GetUsers возвращает список всех пользователей (только для админов)
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	var users []models.User
 	if err := h.DB.Find(&users).Error; err != nil {
@@ -38,10 +41,25 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 }
 
 // GetUser возвращает пользователя по ID
+// (пользователь может получить только свои данные, админ - любые)
 func (h *UserHandler) GetUser(c *gin.Context) {
-	id := c.Param("id")
-	var user models.User
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 
+	// Get the authenticated user's ID from context
+	userID, _ := c.Get("user_id")
+	role, _ := c.Get("role")
+
+	// Check if user is authorized to access this resource
+	if userID.(uint) != uint(id) && role.(string) != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only access your own user data"})
+		return
+	}
+
+	var user models.User
 	if err := h.DB.First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
@@ -50,7 +68,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	c.JSON(http.StatusOK, user.ToResponse())
 }
 
-// CreateUser создает нового пользователя
+// CreateUser создает нового пользователя (только для админов)
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var user models.User
 
@@ -65,6 +83,14 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "User with that email already exists"})
 		return
 	}
+
+	// Hash the password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+	user.Password = string(hashedPassword)
 
 	if err := h.DB.Create(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
@@ -112,7 +138,23 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	if input.Password != "" {
-		updateData["password"] = input.Password
+		// Hash the password
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+			return
+		}
+		updateData["password"] = string(hashedPassword)
+	}
+
+	if input.Role != "" {
+		// Only admins can change roles
+		role, _ := c.Get("role")
+		if role.(string) != "admin" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Only admins can change user roles"})
+			return
+		}
+		updateData["role"] = input.Role
 	}
 
 	h.DB.Model(&user).Updates(updateData)

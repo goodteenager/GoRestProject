@@ -1,31 +1,50 @@
+// internal/models/user.go
+
 package models
 
-import "gorm.io/gorm"
+import (
+	"time"
+)
 
-// User представляет модель пользователя в системе
+// User represents a user in the system
 type User struct {
-	gorm.Model
-	Name     string `json:"name" binding:"required"`
-	Email    string `json:"email" binding:"required,email" gorm:"uniqueIndex"`
-	Password string `json:"password,omitempty" binding:"required"`
+	ID        uint       `json:"id" gorm:"primaryKey"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"-" gorm:"index"`
+	Name      string     `json:"name" binding:"required"`
+	Email     string     `json:"email" binding:"required,email" gorm:"uniqueIndex"`
+	Password  string     `json:"password" binding:"required"`
+	Role      string     `json:"role" gorm:"default:user"`
 }
 
-// UserResponse представляет модель ответа пользователя (без пароля)
+// UserResponse is the safe representation of a User without sensitive data
 type UserResponse struct {
-	ID        uint   `json:"id"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	ID        uint      `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
 }
 
-// ToResponse преобразует модель User в UserResponse
-func (u *User) ToResponse() UserResponse {
+// ToResponse converts a User to a UserResponse (removing sensitive data)
+func (u User) ToResponse() UserResponse {
 	return UserResponse{
 		ID:        u.ID,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
 		Name:      u.Name,
 		Email:     u.Email,
-		CreatedAt: u.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: u.UpdatedAt.Format("2006-01-02 15:04:05"),
+		Role:      u.Role,
 	}
+}
+
+// BeforeSave is a GORM hook that runs before saving a user
+func (u *User) BeforeSave() error {
+	// Set default role if not provided
+	if u.Role == "" {
+		u.Role = "user"
+	}
+	return nil
 }
