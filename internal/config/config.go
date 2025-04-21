@@ -8,7 +8,6 @@ type Config struct {
 	Port        string
 }
 
-// NewConfig создает новый экземпляр конфигурации с данными из окружения
 func NewConfig() *Config {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {

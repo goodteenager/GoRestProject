@@ -1,3 +1,5 @@
+// internal/database/db.go
+
 package database
 
 import (
@@ -6,7 +8,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"go-rest-api/internal/models"
+	"go-rest-api/internal/migrations"
 )
 
 // InitDB инициализирует подключение к базе данных и выполняет миграции
@@ -17,16 +19,11 @@ func InitDB(dsn string) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// Автоматическая миграция моделей
-	if err := db.AutoMigrate(&models.User{}); err != nil {
+	// Запуск миграций
+	if err := migrations.RunMigrations(db); err != nil {
 		return nil, err
 	}
 
 	log.Println("Database connected and migrated successfully")
 	return db, nil
-}
-
-// GetDB возвращает экземпляр базы данных
-func GetDB(db *gorm.DB) *gorm.DB {
-	return db
 }
