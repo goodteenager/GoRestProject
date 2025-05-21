@@ -1,5 +1,3 @@
-// internal/migrations/002_add_role_to_users.go
-
 package migrations
 
 import (

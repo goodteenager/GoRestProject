@@ -2,7 +2,6 @@ package config
 
 import "os"
 
-// Config представляет конфигурацию приложения
 type Config struct {
 	DatabaseURL string
 	Port        string

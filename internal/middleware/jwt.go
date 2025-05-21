@@ -12,10 +12,8 @@ import (
 	"go-rest-api/internal/models"
 )
 
-// JWTAuthMiddleware handles JWT authentication
 func JWTAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get the Authorization header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
@@ -23,7 +21,6 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Check if the header has the Bearer prefix
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header must be in the format: Bearer {token}"})
@@ -31,9 +28,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Parse the JWT token
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			// Validate the signing method
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errors.New("unexpected signing method")
 			}
@@ -46,9 +41,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Validate the token
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			// Check if the token is expired
 			if exp, ok := claims["exp"].(float64); ok {
 				if time.Now().Unix() > int64(exp) {
 					c.JSON(http.StatusUnauthorized, gin.H{"error": "Token has expired"})
@@ -57,7 +50,6 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 				}
 			}
 
-			// Set claims to context for later use in handlers
 			userID, ok := claims["user_id"].(float64)
 			if !ok {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
@@ -65,7 +57,6 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 				return
 			}
 
-			// Set user ID and role in context
 			c.Set("user_id", uint(userID))
 			if role, ok := claims["role"].(string); ok {
 				c.Set("role", role)
@@ -80,26 +71,38 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-// GenerateToken creates a new JWT token for a user
 func GenerateToken(user models.User) (string, error) {
-	// Get JWT secret from environment variable
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		jwtSecret = "default_jwt_secret_key" // Default secret (should be overridden in production)
+		jwtSecret = "default_jwt_secret_key"
 	}
 
-	// Create token with claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": user.ID,
 		"role":    user.Role,
-		"exp":     time.Now().Add(time.Hour * 24).Unix(), // Token expires in 24 hours
+		"exp":     time.Now().Add(time.Hour * 24).Unix(),
 	})
 
-	// Sign and get the complete encoded token as a string
 	tokenString, err := token.SignedString([]byte(jwtSecret))
 	if err != nil {
 		return "", err
 	}
 
 	return tokenString, nil
+}
+
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
 }

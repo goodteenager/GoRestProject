@@ -1,5 +1,3 @@
-// cmd/api/main.go
-
 package main
 
 import (
@@ -14,24 +12,19 @@ import (
 )
 
 func main() {
-	// Загрузка переменных окружения
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using environment variables")
 	}
 
-	// Инициализация конфигурации
 	cfg := config.NewConfig()
 
-	// Инициализация базы данных
 	db, err := database.InitDB(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// Настройка и запуск маршрутизатора
 	r := router.SetupRouter(db)
 
-	// Запуск сервера
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

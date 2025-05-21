@@ -1,54 +1,55 @@
-// internal/router/router.go
-
 package router
 
 import (
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
-
+	"go-rest-api/internal/constants"
 	"go-rest-api/internal/handlers"
 	"go-rest-api/internal/middleware"
+	"gorm.io/gorm"
 )
 
 func SetupRouter(db *gorm.DB) *gin.Engine {
 	router := gin.Default()
 
-	// Создаем обработчики
+	router.Use(middleware.CORSMiddleware())
+
+	router.Static("/static", "./static")
+	router.LoadHTMLGlob("static/*.html")
+
+	router.GET("/", func(c *gin.Context) {
+		c.HTML(200, "index.html", nil)
+	})
+
 	userHandler := handlers.NewUserHandler(db)
 	authHandler := handlers.NewAuthHandler(db)
 
-	// Группа API
 	api := router.Group("/api")
 	{
-		// Публичные маршруты аутентификации
 		auth := api.Group("/auth")
 		{
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/register", authHandler.Register)
 		}
 
-		// Защищенные маршруты пользователей (с JWT аутентификацией)
 		users := api.Group("/users")
-		users.Use(middleware.JWTAuthMiddleware()) // Добавляем JWT аутентификацию
+		users.Use(middleware.JWTAuthMiddleware())
 		{
-			// Маршруты доступные всем аутентифицированным пользователям
 			users.GET("/:id", userHandler.GetUser)
-			users.PUT("/:id", userHandler.UpdateUserSelf) // Новый метод для обновления только своих данных
+			users.PUT("/:id", userHandler.UpdateUserSelf)
 
-			// Защищенные маршруты для модераторов и администраторов
-			modRoutes := users.Group("/")
-			modRoutes.Use(middleware.RoleAuthMiddleware(middleware.RoleAdmin, middleware.RoleModerator))
+			modAdminRoutes := users.Group("")
+			modAdminRoutes.Use(middleware.RoleAuthMiddleware(constants.RoleAdmin, constants.RoleModerator))
 			{
-				modRoutes.GET("", userHandler.GetUsers)
+				modAdminRoutes.GET("", userHandler.GetUsers)
+				modAdminRoutes.PUT("/:id/mod", userHandler.UpdateUserModerator)
 			}
 
-			// Защищенные маршруты для только администраторов
-			adminRoutes := users.Group("/")
-			adminRoutes.Use(middleware.RoleAuthMiddleware(middleware.RoleAdmin))
+			adminRoutes := users.Group("")
+			adminRoutes.Use(middleware.RoleAuthMiddleware(constants.RoleAdmin))
 			{
 				adminRoutes.POST("", userHandler.CreateUser)
-				adminRoutes.PUT("/:id/admin", userHandler.UpdateUserAdmin) // Обновление с правами админа
 				adminRoutes.DELETE("/:id", userHandler.DeleteUser)
+				adminRoutes.PUT("/:id/admin", userHandler.UpdateUserAdmin)
 			}
 		}
 	}

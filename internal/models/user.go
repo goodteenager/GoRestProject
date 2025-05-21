@@ -1,12 +1,11 @@
-// internal/models/user.go
-
 package models
 
 import (
+	"errors"
+	"go-rest-api/internal/constants"
 	"time"
 )
 
-// User represents a user in the system
 type User struct {
 	ID        uint       `json:"id" gorm:"primaryKey"`
 	CreatedAt time.Time  `json:"created_at"`
@@ -18,7 +17,6 @@ type User struct {
 	Role      string     `json:"role" gorm:"default:user"`
 }
 
-// UserResponse is the safe representation of a User without sensitive data
 type UserResponse struct {
 	ID        uint      `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -28,7 +26,6 @@ type UserResponse struct {
 	Role      string    `json:"role"`
 }
 
-// ToResponse converts a User to a UserResponse (removing sensitive data)
 func (u User) ToResponse() UserResponse {
 	return UserResponse{
 		ID:        u.ID,
@@ -41,20 +38,14 @@ func (u User) ToResponse() UserResponse {
 }
 
 func (u *User) BeforeSave() error {
-	// Установка роли по умолчанию, если не указана
-	if u.Role == "" {
-		u.Role = "user"
-	}
-
-	// Проверка, что роль допустима
 	validRoles := map[string]bool{
-		"user":      true,
-		"admin":     true,
-		"moderator": true,
+		constants.RoleUser:      true,
+		constants.RoleAdmin:     true,
+		constants.RoleModerator: true,
 	}
 
 	if !validRoles[u.Role] {
-		u.Role = "user" // Если недопустимая роль, устанавливаем "user"
+		return errors.New("invalid user role")
 	}
 
 	return nil
